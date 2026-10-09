@@ -1,7 +1,8 @@
-export const inputCls =
-  "mt-1 w-full rounded-md border border-black/20 bg-transparent px-3 py-2 dark:border-white/25";
-export const btnCls =
-  "rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50";
-export const btnGhostCls = "rounded-md border border-black/20 px-3 py-1 text-sm dark:border-white/25";
-export const thCls = "px-3 py-2 text-left font-medium";
-export const tdCls = "px-3 py-2";
+/** Class names for the shared styles defined in globals.css. */
+export const inputCls = "input";
+export const btnCls = "btn btn-primary";
+export const btnGhostCls = "btn btn-ghost btn-sm";
+export const btnDangerCls = "btn btn-danger btn-sm";
+export const thCls = "";
+export const tdCls = "";
+export const labelCls = "label";

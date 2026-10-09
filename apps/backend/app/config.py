@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     auth_secret: str = "dev-only-secret-change-me-in-production-0000"
     app_env: str = "development"  # "production" on Vercel
     session_hours: int = 12
+    cron_secret: str = ""  # Vercel Cron sends it as `Authorization: Bearer <secret>`
 
     @property
     def sqlalchemy_url(self) -> str:

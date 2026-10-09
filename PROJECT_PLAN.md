@@ -176,22 +176,22 @@ apps/backend/tests/         pytest
 **Learning focus:** transactions, business rules, date handling, aggregating data.
 
 **Tasks**
-- [ ] Add `DailyRecord` and `SaleItem` models + migration
-- [ ] **Daily entry page** with a toggle:
+- [x] Add `DailyRecord` and `SaleItem` models + migration
+- [x] **Daily entry page** with a toggle:
   - **Detailed mode:** add rows (product, quantity, price auto-filled but editable) → line totals and day total are calculated
   - **Total-only mode:** one field for the day's total amount
-- [ ] One record per date; editing a day later must be possible (and must restore/re-deduct stock correctly in detailed mode)
-- [ ] Use a **database transaction** when saving a detailed day, so stock deduction and sale rows succeed or fail together
-- [ ] Block selling more than the stock on hand (show a friendly message)
-- [ ] Deduct stock using **FEFO** (earliest expiry first)
-- [ ] **Daily history page:** list days, open a day to see its details
-- [ ] **Weekly summary page:**
+- [x] One record per date; editing a day later must be possible (and must restore/re-deduct stock correctly in detailed mode)
+- [x] Use a **database transaction** when saving a detailed day, so stock deduction and sale rows succeed or fail together
+- [x] Block selling more than the stock on hand (show a friendly message)
+- [x] Deduct stock using **FEFO** (earliest expiry first)
+- [x] **Daily history page:** list days, open a day to see its details
+- [x] **Weekly summary page:**
   - Week selector (default: current week)
   - Total earnings for the week
   - **Tithe = 10 %** of total, **Offering = 10 %** of total, and **remaining amount**
   - Day-by-day breakdown for the week
-- [ ] Read percentages and week-start day from `Setting` (don't hard-code 10 or Monday)
-- [ ] Write unit tests for the money maths (see example below)
+- [x] Read percentages and week-start day from `Setting` (don't hard-code 10 or Monday)
+- [x] Write unit tests for the money maths (see example below)
 
 **Worked example for tests** (total sales Monday–Sunday = 500 000)
 | Item | Calculation | Amount |
@@ -220,14 +220,14 @@ Also test: a week with no sales (all zeros), rounding (e.g. 10 % of 1 005), and 
 **Learning focus:** SQL aggregation (`GROUP BY`), chart libraries, designing readable charts.
 
 **Tasks**
-- [ ] Query: units sold and revenue per product for a date range
-- [ ] **Bar chart:** top 10 best-selling products (toggle units / revenue)
-- [ ] **Line chart:** daily or weekly sales total over time
-- [ ] **Pie/donut or bar chart:** sales share by category
-- [ ] Date-range filter: this week, last week, this month, custom
-- [ ] "Slow movers" list: products with zero or very few sales in the period
-- [ ] Empty states ("No sales in this period") and loading states
-- [ ] Note on data quality: total-only days have no product detail, so show a small notice that they're excluded from product charts
+- [x] Query: units sold and revenue per product for a date range
+- [x] **Bar chart:** top 10 best-selling products (toggle units / revenue)
+- [x] **Line chart:** daily or weekly sales total over time
+- [x] **Pie/donut or bar chart:** sales share by category
+- [x] Date-range filter: this week, last week, this month, custom
+- [x] "Slow movers" list: products with zero or very few sales in the period
+- [x] Empty states ("No sales in this period") and loading states
+- [x] Note on data quality: total-only days have no product detail, so show a small notice that they're excluded from product charts
 
 **Definition of Done**
 - Graphs match numbers you can verify by hand from sample data
@@ -242,13 +242,13 @@ Also test: a week with no sales (all zeros), rounding (e.g. 10 % of 1 005), and 
 **Learning focus:** business rules as code, scheduled jobs, notifications.
 
 **Tasks**
-- [ ] **Expiry warnings:** list batches expiring within `expiryWarningDays` (colour code: red = expired or ≤ 3 days, orange = ≤ 7, yellow = ≤ 14)
-- [ ] **Restock warnings:** products at or below `reorderLevel`
-- [ ] **Smart restock hint:** compare average weekly sales to quantity on hand → "about 2 days of stock left"
-- [ ] **Warnings page / dashboard card** with counts and a "mark as handled" action
-- [ ] **Weekly report:** auto-generate every Monday morning (scheduled job / cron) and store it so past weeks can be viewed
-- [ ] Optional: email or WhatsApp/SMS summary (decide with owner; keep behind a setting)
-- [ ] Unit tests for date maths (expired today, expires in exactly N days, no expiry date)
+- [x] **Expiry warnings:** list batches expiring within `expiryWarningDays` (colour code: red = expired or ≤ 3 days, orange = ≤ 7, yellow = ≤ 14)
+- [x] **Restock warnings:** products at or below `reorderLevel`
+- [x] **Smart restock hint:** compare average weekly sales to quantity on hand → "about 2 days of stock left"
+- [x] **Warnings page / dashboard card** with counts and a "mark as handled" action
+- [x] **Weekly report:** auto-generate every Monday morning (scheduled job / cron) and store it so past weeks can be viewed
+- [x] Optional: email or WhatsApp/SMS summary (decide with owner; keep behind a setting)
+- [x] Unit tests for date maths (expired today, expires in exactly N days, no expiry date)
 
 **Definition of Done**
 - A product with a batch expiring in 5 days appears under the right colour
@@ -350,6 +350,12 @@ Record every significant choice here (date · decision · reason).
 | 2026-10-09 | Tithe/offering computed on total weekly sales, 10 % each | Matches the original brief; confirm with owner (section 1.4) |
 | 2026-10-09 | Stack: Next.js + FastAPI + SQLAlchemy/Alembic, SQLite→Neon Postgres, all on Vercel | Requested by the owner; Python backend owns data and Excel export |
 | 2026-10-09 | Quantities are whole numbers; money is whole XAF; stock adjustments target a specific batch and are logged in `stock_adjustments` | Simplest correct model for Phase 2; revisit if the store sells fractional kg/litres |
+| 2026-10-09 | Tithe/offering each rounded half-up to a whole unit; remaining = total − tithe − offering (10% of 1 005 → 101 + 101, remaining 803) | Parts always add up to the total; confirm rounding with the owner |
+| 2026-10-09 | Each sale line records which batches it drew from (`sale_allocations`) | Edits/deletes restore stock to exactly the right batches |
+| 2026-10-09 | UI: five colour skins via CSS variables, toasts, confirm dialogs, live stock checks | Fewer cashier mistakes; skin saved per browser |
+| 2026-10-09 | Owner-only profit per product = sales − cost of the exact batches sold (from `sale_allocations`); cashier API responses contain null cost/profit | Profit must never reach the cashier's browser, not just be hidden in the UI |
+| 2026-10-09 | Weekly report: Vercel Cron (Mon 06:00 UTC, `CRON_SECRET`) + catch-up when the Reports page is opened + `weekly_report.py` for local scheduling | Report appears without anyone clicking, even if a cron run is missed |
+| 2026-10-09 | Smart restock hint uses 28-day average daily sales; products with < 7 days of stock are flagged even above the reorder level | Matches the plan's "compare weekly sales to stock on hand" |
 | 2026-10-09 | Monthly Excel export + archiving to stay inside free storage | See section 11 |
 
 ---
@@ -358,9 +364,9 @@ Record every significant choice here (date · decision · reason).
 
 - [x] Phase 1 — Foundation & Authentication
 - [x] Phase 2 — Inventory Management
-- [ ] Phase 3 — Sales Recording & Weekly Tithe/Offering  *(MVP)*
-- [ ] Phase 4 — Sales Statistics & Graphs
-- [ ] Phase 5 — Weekly Warnings
+- [x] Phase 3 — Sales Recording & Weekly Tithe/Offering  *(MVP)*
+- [x] Phase 4 — Sales Statistics & Graphs
+- [x] Phase 5 — Weekly Warnings
 - [ ] Phase 6 — Polish, Roles, Reports & Testing
 - [ ] Phase 7 — Deployment & Maintenance
 

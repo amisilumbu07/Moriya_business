@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError, formatMoney, type Product } from "@/lib/api";
-import { btnCls, btnGhostCls, inputCls, tdCls, thCls } from "@/components/ui";
+import { useFeedback } from "@/components/Feedback";
 
 const emptyForm = { name: "", category: "", unit: "piece", selling_price: "", reorder_level: "0" };
+type Errors = Partial<Record<keyof typeof emptyForm, string>>;
+
+const isWhole = (v: string) => /^\d+$/.test(v.trim());
 
 export default function ProductsPage() {
+  const { toast, confirm } = useFeedback();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -14,10 +18,10 @@ export default function ProductsPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(true);
-
   const [reloadKey, setReloadKey] = useState(0);
+  const [justSaved, setJustSaved] = useState<number | null>(null);
   const reload = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
@@ -27,161 +31,144 @@ export default function ProductsPage() {
         setProducts(p);
         setCategories(c);
       })
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Could not load products"))
+      .catch((e) => toast("error", e instanceof ApiError ? e.message : "Could not load products"))
       .finally(() => setLoading(false));
-  }, [search, category, showInactive, reloadKey]);
+  }, [search, category, showInactive, reloadKey, toast]);
 
   function startEdit(p: Product | null) {
     setEditing(p);
-    setError(null);
-    setForm(
-      p
-        ? {
-            name: p.name,
-            category: p.category,
-            unit: p.unit,
-            selling_price: String(p.selling_price),
-            reorder_level: String(p.reorder_level),
-          }
-        : emptyForm,
-    );
+    setErrors({});
+    setForm(p ? { name: p.name, category: p.category, unit: p.unit, selling_price: String(p.selling_price), reorder_level: String(p.reorder_level) } : emptyForm);
+    if (p) window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const price = Number(form.selling_price);
-    const reorder = Number(form.reorder_level);
-    if (!Number.isInteger(price) || price < 0 || !Number.isInteger(reorder) || reorder < 0) {
-      setError("Price and reorder level must be whole numbers, 0 or more");
-      return;
-    }
-    const body = JSON.stringify({ ...form, selling_price: price, reorder_level: reorder });
+  const duplicate = products.find(
+    (p) => p.name.trim().toLowerCase() === form.name.trim().toLowerCase() && p.id !== editing?.id,
+  );
+
+  function validate(): Errors {
+    const e: Errors = {};
+    if (!form.name.trim()) e.name = "Enter the product name";
+    if (!form.unit.trim()) e.unit = "Enter a unit, e.g. piece or kg";
+    if (!isWhole(form.selling_price)) e.selling_price = "Enter the price as a whole number, e.g. 1500";
+    if (!isWhole(form.reorder_level)) e.reorder_level = "Enter a whole number (0 if you don't need an alert)";
+    return e;
+  }
+
+  async function save(ev: React.FormEvent) {
+    ev.preventDefault();
+    const e = validate();
+    setErrors(e);
+    if (Object.keys(e).length) return;
+    if (duplicate && !(await confirm({ title: "Similar product exists", message: `“${duplicate.name}” is already in your list. Add another one with the same name?`, confirmLabel: "Add anyway" }))) return;
     try {
-      await api(editing ? `/api/products/${editing.id}` : "/api/products", {
+      const saved = await api<Product>(editing ? `/api/products/${editing.id}` : "/api/products", {
         method: editing ? "PATCH" : "POST",
-        body,
+        body: JSON.stringify({ ...form, selling_price: Number(form.selling_price), reorder_level: Number(form.reorder_level) }),
       });
+      toast("success", editing ? `Saved changes to ${saved.name}` : `Added ${saved.name}`);
+      setJustSaved(saved.id);
       startEdit(null);
       reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save");
+      toast("error", err instanceof ApiError ? err.message : "Could not save");
     }
   }
 
   async function setActive(p: Product, is_active: boolean) {
+    if (!is_active) {
+      const ok = await confirm({
+        title: `Deactivate ${p.name}?`,
+        message: "It will disappear from dropdowns and can't be sold or restocked. Past records keep it, and you can reactivate it any time.",
+        confirmLabel: "Deactivate",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     await api(`/api/products/${p.id}`, { method: "PATCH", body: JSON.stringify({ is_active }) });
+    toast("info", is_active ? `${p.name} reactivated` : `${p.name} deactivated`);
     reload();
   }
 
-  const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [k]: e.target.value });
+    if (errors[k]) setErrors({ ...errors, [k]: undefined });
+  };
+  const err = (k: keyof typeof emptyForm) => errors[k] && <p role="alert" className="field-error">{errors[k]}</p>;
 
   return (
     <section className="space-y-6">
-      <h1 className="text-xl font-semibold">Products</h1>
+      <h1 className="text-2xl font-extrabold">Products</h1>
 
-      <form onSubmit={save} className="grid gap-3 rounded-lg border border-black/10 p-4 sm:grid-cols-6 dark:border-white/15">
-        <h2 className="text-sm font-semibold sm:col-span-6">{editing ? `Edit “${editing.name}”` : "Add a product"}</h2>
-        <label className="text-sm sm:col-span-2">
+      <form onSubmit={save} noValidate className="card grid gap-4 sm:grid-cols-6">
+        <h2 className="font-bold sm:col-span-6">{editing ? `✏️ Editing “${editing.name}”` : "➕ Add a product"}</h2>
+        <label className="label sm:col-span-2">
           Name
-          <input className={inputCls} value={form.name} onChange={set("name")} required maxLength={100} />
+          <input className="input" value={form.name} onChange={set("name")} maxLength={100} aria-invalid={!!errors.name} />
+          {err("name")}
+          {duplicate && !errors.name && <p className="hint text-warning">⚠ “{duplicate.name}” already exists.</p>}
         </label>
-        <label className="text-sm">
+        <label className="label">
           Category
-          <input className={inputCls} value={form.category} onChange={set("category")} list="cats" maxLength={50} />
-          <datalist id="cats">
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          <input className="input" value={form.category} onChange={set("category")} list="cats" maxLength={50} />
+          <datalist id="cats">{categories.map((c) => <option key={c} value={c} />)}</datalist>
         </label>
-        <label className="text-sm">
+        <label className="label">
           Unit
-          <input className={inputCls} value={form.unit} onChange={set("unit")} required maxLength={20} />
+          <input className="input" value={form.unit} onChange={set("unit")} maxLength={20} aria-invalid={!!errors.unit} />
+          {err("unit")}
         </label>
-        <label className="text-sm">
-          Selling price (XAF)
-          <input className={inputCls} inputMode="numeric" value={form.selling_price} onChange={set("selling_price")} required />
+        <label className="label">
+          Price (XAF)
+          <input className="input" inputMode="numeric" value={form.selling_price} onChange={set("selling_price")} aria-invalid={!!errors.selling_price} />
+          {err("selling_price")}
+          {isWhole(form.selling_price) && <p className="hint">{formatMoney(Number(form.selling_price))}</p>}
         </label>
-        <label className="text-sm">
-          Reorder level
-          <input className={inputCls} inputMode="numeric" value={form.reorder_level} onChange={set("reorder_level")} required />
+        <label className="label">
+          Alert when stock ≤
+          <input className="input" inputMode="numeric" value={form.reorder_level} onChange={set("reorder_level")} aria-invalid={!!errors.reorder_level} />
+          {err("reorder_level")}
         </label>
-        <div className="flex items-end gap-2 sm:col-span-6">
-          <button className={btnCls}>{editing ? "Save changes" : "Add product"}</button>
-          {editing && (
-            <button type="button" className={btnGhostCls} onClick={() => startEdit(null)}>
-              Cancel
-            </button>
-          )}
+        <div className="flex gap-2 sm:col-span-6">
+          <button className="btn btn-primary">{editing ? "Save changes" : "Add product"}</button>
+          {editing && <button type="button" className="btn btn-ghost" onClick={() => startEdit(null)}>Cancel</button>}
         </div>
-        {error && (
-          <p role="alert" className="text-sm text-red-600 sm:col-span-6 dark:text-red-400">
-            {error}
-          </p>
-        )}
       </form>
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          Search
-          <input className={inputCls} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name…" />
-        </label>
-        <label className="text-sm">
-          Category
-          <select className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)}>
+        <label className="label">Search<input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Name…" /></label>
+        <label className="label">Category
+          <select className="input" value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">All</option>
-            {categories.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
+            {categories.map((c) => <option key={c}>{c}</option>)}
           </select>
         </label>
-        <label className="flex items-center gap-2 pb-2 text-sm">
-          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+        <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
+          <input type="checkbox" className="h-4 w-4 accent-[var(--primary)]" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
           Show deactivated
         </label>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="border-b border-black/10 dark:border-white/15">
-            <tr>
-              <th className={thCls}>Name</th>
-              <th className={thCls}>Category</th>
-              <th className={thCls}>Unit</th>
-              <th className={thCls}>Price</th>
-              <th className={thCls}>Reorder at</th>
-              <th className={thCls}></th>
-            </tr>
-          </thead>
+      <div className="card overflow-x-auto p-2">
+        <table className="table">
+          <thead><tr><th>Name</th><th>Category</th><th>Unit</th><th>Price</th><th>Alert at</th><th></th></tr></thead>
           <tbody>
+            {loading && [0, 1, 2].map((i) => <tr key={i}><td colSpan={6}><div className="skeleton h-6" /></td></tr>)}
             {products.map((p) => (
-              <tr key={p.id} className={`border-b border-black/5 dark:border-white/10 ${p.is_active ? "" : "opacity-50"}`}>
-                <td className={tdCls}>
-                  {p.name}
-                  {!p.is_active && <span className="ml-2 text-xs">(deactivated)</span>}
-                </td>
-                <td className={tdCls}>{p.category || "—"}</td>
-                <td className={tdCls}>{p.unit}</td>
-                <td className={tdCls}>{formatMoney(p.selling_price)}</td>
-                <td className={tdCls}>{p.reorder_level}</td>
-                <td className={`${tdCls} space-x-2 whitespace-nowrap text-right`}>
-                  <button className={btnGhostCls} onClick={() => startEdit(p)}>
-                    Edit
-                  </button>
-                  <button className={btnGhostCls} onClick={() => setActive(p, !p.is_active)}>
-                    {p.is_active ? "Deactivate" : "Reactivate"}
-                  </button>
+              <tr key={p.id} className={`${p.is_active ? "" : "opacity-50"} ${justSaved === p.id ? "row-new" : ""}`}>
+                <td className="font-semibold">{p.name}{!p.is_active && <span className="badge badge-muted ml-2">deactivated</span>}</td>
+                <td>{p.category || "—"}</td>
+                <td>{p.unit}</td>
+                <td>{formatMoney(p.selling_price)}</td>
+                <td>{p.reorder_level}</td>
+                <td className="space-x-2 whitespace-nowrap text-right">
+                  <button className="btn btn-ghost btn-sm" onClick={() => startEdit(p)}>Edit</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setActive(p, !p.is_active)}>{p.is_active ? "Deactivate" : "Reactivate"}</button>
                 </td>
               </tr>
             ))}
             {!loading && products.length === 0 && (
-              <tr>
-                <td className={tdCls} colSpan={6}>
-                  No products found.
-                </td>
-              </tr>
+              <tr><td colSpan={6} className="py-10 text-center text-muted">📭 No products found. Add your first one above.</td></tr>
             )}
           </tbody>
         </table>

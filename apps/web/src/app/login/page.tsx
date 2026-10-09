@@ -3,11 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, ApiError, type User } from "@/lib/api";
+import { SkinPicker } from "@/components/SkinPicker";
 
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [shaking, setShaking] = useState(false);
   const [pending, setPending] = useState(false);
+  const [show, setShow] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -23,57 +26,45 @@ export default function LoginPage() {
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not reach the server. Try again.");
+      setShaking(true);
+      setTimeout(() => setShaking(false), 450);
       setPending(false);
     }
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center p-4">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded-lg border border-black/10 p-6 dark:border-white/15"
-      >
-        <h1 className="text-xl font-semibold">Store Tracker</h1>
-        <p className="text-sm opacity-70">Log in to continue.</p>
+    <main className="relative flex flex-1 items-center justify-center p-4">
+      <div className="absolute right-4 top-4"><SkinPicker /></div>
+      <div className="page w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <div className="float mx-auto mb-3 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-primary to-primary-2 text-3xl shadow-lg">🛒</div>
+          <h1 className="gradient-text text-3xl font-extrabold">Store Tracker</h1>
+          <p className="mt-1 text-sm text-muted">Stock, daily sales and weekly figures in one place.</p>
+        </div>
 
-        <label className="block text-sm font-medium">
-          Username
-          <input
-            name="username"
-            autoComplete="username"
-            autoCapitalize="none"
-            required
-            maxLength={50}
-            className="mt-1 w-full rounded-md border border-black/20 bg-transparent px-3 py-2 dark:border-white/25"
-          />
-        </label>
-
-        <label className="block text-sm font-medium">
-          Password
-          <input
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            maxLength={128}
-            className="mt-1 w-full rounded-md border border-black/20 bg-transparent px-3 py-2 dark:border-white/25"
-          />
-        </label>
-
-        {error && (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={pending}
-          className="w-full rounded-md bg-foreground px-3 py-2 font-medium text-background disabled:opacity-50"
-        >
-          {pending ? "Logging in…" : "Log in"}
-        </button>
-      </form>
+        <form onSubmit={onSubmit} className={`card space-y-4 ${shaking ? "shake" : ""}`}>
+          <label className="label">
+            Username
+            <input name="username" autoComplete="username" autoCapitalize="none" required maxLength={50}
+              aria-invalid={!!error} className="input text-base text-foreground" />
+          </label>
+          <label className="label">
+            Password
+            <span className="relative block">
+              <input name="password" type={show ? "text" : "password"} autoComplete="current-password" required maxLength={128}
+                aria-invalid={!!error} className="input pr-16 text-base text-foreground" />
+              <button type="button" onClick={() => setShow(!show)} aria-label={show ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-semibold text-primary">
+                {show ? "Hide" : "Show"}
+              </button>
+            </span>
+          </label>
+          {error && <p role="alert" className="field-error">{error}</p>}
+          <button type="submit" disabled={pending} className="btn btn-primary w-full">
+            {pending ? "Logging in…" : "Log in"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

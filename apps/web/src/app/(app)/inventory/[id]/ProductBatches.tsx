@@ -2,45 +2,47 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, ApiError, formatMoney, type Batch, type Product } from "@/lib/api";
-import { btnCls, btnGhostCls, inputCls, tdCls, thCls } from "@/components/ui";
+import { api, ApiError, formatDate, formatMoney, type Batch, type Product } from "@/lib/api";
+import { useFeedback } from "@/components/Feedback";
 
 export default function ProductBatches({ id }: { id: string }) {
+  const { toast, confirm } = useFeedback();
   const [product, setProduct] = useState<Product | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
-  const [adjusting, setAdjusting] = useState<number | null>(null);
+  const [adjusting, setAdjusting] = useState<Batch | null>(null);
   const [change, setChange] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
-
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    Promise.all([
-      api<Product[]>("/api/products?include_inactive=true"),
-      api<Batch[]>(`/api/products/${id}/batches`),
-    ])
+    Promise.all([api<Product[]>("/api/products?include_inactive=true"), api<Batch[]>(`/api/products/${id}/batches`)])
       .then(([products, b]) => {
         setProduct(products.find((p) => String(p.id) === id) ?? null);
         setBatches(b);
       })
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Could not load"));
-  }, [id, reloadKey]);
+      .catch((e) => toast("error", e instanceof ApiError ? e.message : "Could not load"));
+  }, [id, reloadKey, toast]);
+
+  const n = Number(change);
+  const valid = /^-?\d+$/.test(change) && n !== 0;
+  const after = adjusting && valid ? adjusting.quantity_remaining + n : null;
 
   async function adjust(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    const n = Number(change);
-    if (!Number.isInteger(n) || n === 0) return setError("Enter a whole number other than 0 (negative removes stock)");
-    if (!reason.trim()) return setError("A reason is required");
+    if (!adjusting) return;
+    if (!valid) return setError("Enter a whole number other than 0 (negative removes stock)");
+    if (after !== null && after < 0) return setError(`Only ${adjusting.quantity_remaining} left in this batch`);
+    if (!reason.trim()) return setError("A reason is required, so it can be traced later");
+    if (n < 0 && !(await confirm({
+      title: "Remove stock?",
+      message: `Remove ${-n} from this batch (${adjusting.quantity_remaining} → ${after}). Reason: “${reason.trim()}”.`,
+      confirmLabel: "Remove stock", danger: true,
+    }))) return;
     try {
-      await api("/api/stock/adjust", {
-        method: "POST",
-        body: JSON.stringify({ batch_id: adjusting, quantity_change: n, reason }),
-      });
-      setAdjusting(null);
-      setChange("");
-      setReason("");
+      await api("/api/stock/adjust", { method: "POST", body: JSON.stringify({ batch_id: adjusting.id, quantity_change: n, reason }) });
+      toast("success", "Stock adjusted");
+      setAdjusting(null); setChange(""); setReason(""); setError(null);
       setReloadKey((k) => k + 1);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save");
@@ -48,70 +50,49 @@ export default function ProductBatches({ id }: { id: string }) {
   }
 
   return (
-    <section className="space-y-4">
-      <Link href="/inventory" className="text-sm underline">
-        ← Inventory
-      </Link>
-      <h1 className="text-xl font-semibold">{product ? product.name : "Product"} — batches</h1>
-      {product && (
-        <p className="text-sm opacity-70">
-          On hand: {product.quantity_on_hand} {product.unit}
-          {product.low_stock && <span className="ml-2 rounded bg-red-600 px-2 py-0.5 text-xs text-white">Low stock</span>}
-        </p>
-      )}
+    <section className="space-y-5">
+      <Link href="/inventory" className="text-sm font-semibold text-primary">← Inventory</Link>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-extrabold">{product ? product.name : "Product"}</h1>
+        {product && <span className="badge badge-muted">{product.quantity_on_hand} {product.unit} on hand</span>}
+        {product?.low_stock && <span className="badge badge-danger badge-pulse">Low stock</span>}
+      </div>
 
-      {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="border-b border-black/10 dark:border-white/15">
-            <tr>
-              <th className={thCls}>Received</th>
-              <th className={thCls}>Expiry</th>
-              <th className={thCls}>Received qty</th>
-              <th className={thCls}>Remaining</th>
-              <th className={thCls}>Cost</th>
-              <th className={thCls}></th>
-            </tr>
-          </thead>
+      <div className="card overflow-x-auto p-2">
+        <table className="table">
+          <thead><tr><th>Received</th><th>Expiry</th><th>Received qty</th><th>Remaining</th><th>Cost</th><th></th></tr></thead>
           <tbody>
             {batches.map((b) => (
-              <tr key={b.id} className="border-b border-black/5 dark:border-white/10">
-                <td className={tdCls}>{b.received_at}</td>
-                <td className={tdCls}>{b.expiry_date ?? "—"}</td>
-                <td className={tdCls}>{b.quantity_received}</td>
-                <td className={tdCls}>{b.quantity_remaining}</td>
-                <td className={tdCls}>{formatMoney(b.cost_price)}</td>
-                <td className={`${tdCls} text-right`}>
-                  <button className={btnGhostCls} onClick={() => { setAdjusting(b.id); setError(null); }}>
-                    Adjust
-                  </button>
-                </td>
+              <tr key={b.id}>
+                <td>{formatDate(b.received_at)}</td>
+                <td>{b.expiry_date ? formatDate(b.expiry_date) : "—"}</td>
+                <td>{b.quantity_received}</td>
+                <td><b>{b.quantity_remaining}</b>{b.quantity_remaining === 0 && <span className="badge badge-muted ml-2">empty</span>}</td>
+                <td>{formatMoney(b.cost_price)}</td>
+                <td className="text-right"><button className="btn btn-ghost btn-sm" onClick={() => { setAdjusting(b); setError(null); }}>Adjust</button></td>
               </tr>
             ))}
-            {batches.length === 0 && (
-              <tr>
-                <td className={tdCls} colSpan={6}>No stock received yet.</td>
-              </tr>
-            )}
+            {batches.length === 0 && <tr><td colSpan={6} className="py-10 text-center text-muted">📭 No stock received yet.</td></tr>}
           </tbody>
         </table>
       </div>
 
-      {adjusting !== null && (
-        <form onSubmit={adjust} className="max-w-md space-y-3 rounded-lg border border-black/10 p-4 dark:border-white/15">
-          <h2 className="text-sm font-semibold">Adjust batch #{adjusting}</h2>
-          <label className="block text-sm">
-            Change (e.g. -2 for spoiled, 3 to add)
-            <input className={inputCls} inputMode="numeric" value={change} onChange={(e) => setChange(e.target.value)} required />
+      {adjusting && (
+        <form onSubmit={adjust} noValidate className="card pop-in max-w-md space-y-4">
+          <h2 className="font-bold">Adjust batch received {formatDate(adjusting.received_at)}</h2>
+          <label className="label">
+            Change (−2 for spoiled, 3 to add)
+            <input className="input" inputMode="numeric" value={change} onChange={(e) => { setChange(e.target.value); setError(null); }} autoFocus />
+            {after !== null && <p className={`hint ${after < 0 ? "text-danger" : ""}`}>Remaining will be <b>{after}</b></p>}
           </label>
-          <label className="block text-sm">
+          <label className="label">
             Reason
-            <input className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} required maxLength={200} placeholder="Spoiled, damaged, miscount…" />
+            <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="Spoiled, damaged, miscount…" />
           </label>
+          {error && <p role="alert" className="field-error">{error}</p>}
           <div className="flex gap-2">
-            <button className={btnCls}>Save adjustment</button>
-            <button type="button" className={btnGhostCls} onClick={() => setAdjusting(null)}>Cancel</button>
+            <button className="btn btn-primary">Save adjustment</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setAdjusting(null)}>Cancel</button>
           </div>
         </form>
       )}

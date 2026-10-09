@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { FeedbackProvider } from "@/components/Feedback";
+import { skinInitScript } from "@/components/SkinPicker";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,9 +23,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      data-skin="ocean"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: skinInitScript }} />
+      </head>
+      <body className="min-h-full flex flex-col">
+        <FeedbackProvider>{children}</FeedbackProvider>
+      </body>
     </html>
   );
 }

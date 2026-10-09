@@ -2,96 +2,104 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, ApiError, type Product } from "@/lib/api";
-import { btnCls, inputCls } from "@/components/ui";
+import { api, ApiError, formatDate, formatMoney, todayIso, type Product } from "@/lib/api";
+import { useFeedback } from "@/components/Feedback";
 
-const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+type Errors = Partial<Record<"product" | "quantity" | "cost" | "expiry", string>>;
 
 export default function ReceiveStockPage() {
+  const { toast, confirm } = useFeedback();
   const [products, setProducts] = useState<Product[]>([]);
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [cost, setCost] = useState("");
   const [received, setReceived] = useState("");
   const [expiry, setExpiry] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Errors>({});
+  const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState(0);
 
   useEffect(() => {
-    // Date is set after mount so it is the visitor's today, not the build date.
-    setTimeout(() => setReceived((d) => d || today()), 0);
-    api<Product[]>("/api/products").then(setProducts).catch(() => setError("Could not load products"));
-  }, []);
+    // Set after mount so it is the visitor's today, not the build date.
+    setTimeout(() => setReceived((d) => d || todayIso()), 0);
+    api<Product[]>("/api/products").then(setProducts).catch(() => toast("error", "Could not load products"));
+  }, [toast]);
+
+  const product = products.find((p) => String(p.id) === productId);
+  const costNum = Number(cost);
+  const costWarning = product && cost && /^\d+$/.test(cost) && costNum > product.selling_price
+    ? `Cost (${formatMoney(costNum)}) is higher than the selling price (${formatMoney(product.selling_price)}). Double-check it.` : null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setMessage(null);
     const q = Number(quantity);
-    const c = Number(cost);
-    if (!productId) return setError("Choose a product");
-    if (!Number.isInteger(q) || q <= 0) return setError("Quantity must be a whole number above 0");
-    if (!Number.isInteger(c) || c < 0) return setError("Cost price must be a whole number, 0 or more");
-    if (expiry && expiry < received) return setError("Expiry date cannot be before the received date");
+    const errs: Errors = {};
+    if (!productId) errs.product = "Choose a product";
+    if (!/^\d+$/.test(quantity) || q <= 0) errs.quantity = "Enter a whole number above 0";
+    if (!/^\d+$/.test(cost)) errs.cost = "Enter the cost per unit as a whole number";
+    if (expiry && expiry < received) errs.expiry = "Expiry can't be before the received date";
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+    if (costWarning && !(await confirm({ title: "Check the cost price", message: costWarning, confirmLabel: "Save anyway" }))) return;
+    setSaving(true);
     try {
       await api("/api/stock/receive", {
         method: "POST",
-        body: JSON.stringify({
-          product_id: Number(productId),
-          quantity: q,
-          cost_price: c,
-          received_at: received,
-          expiry_date: expiry || null,
-        }),
+        body: JSON.stringify({ product_id: Number(productId), quantity: q, cost_price: costNum, received_at: received, expiry_date: expiry || null }),
       });
-      const name = products.find((p) => String(p.id) === productId)?.name;
-      setMessage(`Received ${q} × ${name}.`);
-      setQuantity("");
-      setCost("");
-      setExpiry("");
+      toast("success", `Received ${q} ${product?.unit ?? ""} of ${product?.name}`);
+      setProducts(await api<Product[]>("/api/products"));
+      setQuantity(""); setCost(""); setExpiry(""); setFlash((f) => f + 1);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save");
+      toast("error", err instanceof ApiError ? err.message : "Could not save");
+    } finally {
+      setSaving(false);
     }
   }
 
+  const err = (k: keyof Errors) => errors[k] && <p role="alert" className="field-error">{errors[k]}</p>;
+  const clear = (k: keyof Errors) => () => errors[k] && setErrors({ ...errors, [k]: undefined });
+
   return (
-    <section className="max-w-lg space-y-4">
-      <h1 className="text-xl font-semibold">Receive stock</h1>
-      <form onSubmit={submit} className="space-y-3">
-        <label className="block text-sm">
+    <section className="mx-auto max-w-xl space-y-5">
+      <h1 className="text-2xl font-extrabold">📦 Receive stock</h1>
+      <form key={flash} onSubmit={submit} noValidate className={`card space-y-4 ${flash ? "pop-in" : ""}`}>
+        <label className="label">
           Product
-          <select className={inputCls} value={productId} onChange={(e) => setProductId(e.target.value)} required>
+          <select className="input" value={productId} onChange={(e) => { setProductId(e.target.value); clear("product")(); }} aria-invalid={!!errors.product}>
             <option value="">Choose…</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.unit})
-              </option>
-            ))}
+            {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
           </select>
+          {err("product")}
+          {product && <p className="hint">Currently in stock: <b>{product.quantity_on_hand} {product.unit}</b> · selling at {formatMoney(product.selling_price)}</p>}
         </label>
-        <label className="block text-sm">
-          Quantity received
-          <input className={inputCls} inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
-        </label>
-        <label className="block text-sm">
-          Cost price per unit (XAF)
-          <input className={inputCls} inputMode="numeric" value={cost} onChange={(e) => setCost(e.target.value)} required />
-        </label>
-        <label className="block text-sm">
-          Date received
-          <input type="date" className={inputCls} value={received} onChange={(e) => setReceived(e.target.value)} required />
-        </label>
-        <label className="block text-sm">
-          Expiry date (optional)
-          <input type="date" className={inputCls} value={expiry} onChange={(e) => setExpiry(e.target.value)} />
-        </label>
-        <button className={btnCls}>Save batch</button>
-        {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        {message && (
-          <p role="status" className="text-sm text-green-700 dark:text-green-400">
-            {message} <Link href="/inventory" className="underline">View inventory</Link>
-          </p>
-        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="label">
+            Quantity received
+            <input className="input" inputMode="numeric" value={quantity} onChange={(e) => { setQuantity(e.target.value); clear("quantity")(); }} aria-invalid={!!errors.quantity} />
+            {err("quantity")}
+          </label>
+          <label className="label">
+            Cost per unit (XAF)
+            <input className="input" inputMode="numeric" value={cost} onChange={(e) => { setCost(e.target.value); clear("cost")(); }} aria-invalid={!!errors.cost} />
+            {err("cost")}
+            {costWarning && <p className="hint text-warning">⚠ Higher than the selling price</p>}
+          </label>
+          <label className="label">
+            Date received
+            <input type="date" className="input" value={received} onChange={(e) => setReceived(e.target.value)} />
+          </label>
+          <label className="label">
+            Expiry date (optional)
+            <input type="date" className="input" value={expiry} onChange={(e) => { setExpiry(e.target.value); clear("expiry")(); }} aria-invalid={!!errors.expiry} />
+            {err("expiry")}
+            {expiry && !errors.expiry && <p className="hint">Expires {formatDate(expiry)}</p>}
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="btn btn-primary" disabled={saving}>{saving ? "Saving…" : "Save batch"}</button>
+          <Link href="/inventory" className="btn btn-ghost">View inventory</Link>
+        </div>
       </form>
     </section>
   );

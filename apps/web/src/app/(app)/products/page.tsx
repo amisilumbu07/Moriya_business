@@ -119,7 +119,7 @@ export default function ProductsPage() {
           {err("unit")}
         </label>
         <label className="label">
-          Price (XAF)
+          Price (K)
           <input className="input" inputMode="numeric" value={form.selling_price} onChange={set("selling_price")} aria-invalid={!!errors.selling_price} />
           {err("selling_price")}
           {isWhole(form.selling_price) && <p className="hint">{formatMoney(Number(form.selling_price))}</p>}

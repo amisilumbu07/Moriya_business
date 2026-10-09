@@ -18,7 +18,7 @@ DEFAULT_SETTINGS = {
     "offering_percent": "10",
     "expiry_warning_days": "14",
     "week_starts_on": "1",  # 1 = Monday ... 7 = Sunday
-    "currency": "XAF",
+    "currency": "ZMW",
 }
 
 

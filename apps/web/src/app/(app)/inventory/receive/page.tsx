@@ -80,7 +80,7 @@ export default function ReceiveStockPage() {
             {err("quantity")}
           </label>
           <label className="label">
-            Cost per unit (XAF)
+            Cost per unit (K)
             <input className="input" inputMode="numeric" value={cost} onChange={(e) => { setCost(e.target.value); clear("cost")(); }} aria-invalid={!!errors.cost} />
             {err("cost")}
             {costWarning && <p className="hint text-warning">⚠ Higher than the selling price</p>}

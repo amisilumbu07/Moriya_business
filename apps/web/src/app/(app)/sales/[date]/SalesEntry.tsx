@@ -242,7 +242,7 @@ export default function SalesEntry({ date }: { date: string }) {
                 <label className="label">Qty
                   <input className="input" inputMode="numeric" value={r.qty} onChange={(e) => updateRow(r.key, { qty: e.target.value })} aria-invalid={!!(info.error && info.product && !isWhole(r.qty) || (info.error?.includes("available") || info.error?.includes("out of stock")))} />
                 </label>
-                <label className="label">Price (XAF)
+                <label className="label">Price (K)
                   <input className="input" inputMode="numeric" value={r.price} onChange={(e) => updateRow(r.key, { price: e.target.value })}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (idx === rows.length - 1) addRow(); } }} aria-invalid={!!(tried && !isWhole(r.price))} />
                   {info.priceDiffers && info.product && <p className="hint text-warning">List price {formatMoney(info.product.selling_price)}</p>}
@@ -259,7 +259,7 @@ export default function SalesEntry({ date }: { date: string }) {
         </div>
       ) : (
         <div className="card pop-in max-w-md space-y-2">
-          <label className="label">Total sales for the day (XAF)
+          <label className="label">Total sales for the day (K)
             <input className="input text-xl font-bold" inputMode="numeric" value={totalText} onChange={(e) => touch(setTotalText)(e.target.value)} autoFocus
               aria-invalid={tried && !totalOnlyOk} placeholder="e.g. 45000" />
           </label>

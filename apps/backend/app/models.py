@@ -31,7 +31,7 @@ class Setting(Base):
 
 
 class Product(Base):
-    """Money is stored as whole currency units (XAF has no decimals); quantities are whole numbers."""
+    """Money is stored as whole kwacha (ZMW; no ngwee yet); quantities are whole numbers."""
 
     __tablename__ = "products"
 

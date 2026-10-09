@@ -60,3 +60,6 @@ Both roles can use stock, sales, statistics, warnings and reports. **Profit and 
 cd apps/backend && uv run pytest
 cd apps/web && npm test && npm run lint && npm run build
 ```
+
+---
+© 2026 Moriya Business. All rights reserved.

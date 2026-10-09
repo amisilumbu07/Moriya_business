@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FeedbackProvider } from "@/components/Feedback";
+import { Footer } from "@/components/Footer";
 import { skinInitScript } from "@/components/SkinPicker";
 import "./globals.css";
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col">
         <FeedbackProvider>{children}</FeedbackProvider>
+        <Footer />
       </body>
     </html>
   );

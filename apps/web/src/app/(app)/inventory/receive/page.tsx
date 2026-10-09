@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, ApiError, formatDate, formatMoney, todayIso, type Product } from "@/lib/api";
 import { useFeedback } from "@/components/Feedback";
+import { moneyProblem, parseMoney } from "@/lib/money";
 
 type Errors = Partial<Record<"product" | "quantity" | "cost" | "expiry", string>>;
 
@@ -26,8 +27,8 @@ export default function ReceiveStockPage() {
   }, [toast]);
 
   const product = products.find((p) => String(p.id) === productId);
-  const costNum = Number(cost);
-  const costWarning = product && cost && /^\d+$/.test(cost) && costNum > product.selling_price
+  const costNum = parseMoney(cost);
+  const costWarning = product && costNum !== null && costNum > product.selling_price
     ? `Cost (${formatMoney(costNum)}) is higher than the selling price (${formatMoney(product.selling_price)}). Double-check it.` : null;
 
   async function submit(e: React.FormEvent) {
@@ -36,7 +37,8 @@ export default function ReceiveStockPage() {
     const errs: Errors = {};
     if (!productId) errs.product = "Choose a product";
     if (!/^\d+$/.test(quantity) || q <= 0) errs.quantity = "Enter a whole number above 0";
-    if (!/^\d+$/.test(cost)) errs.cost = "Enter the cost per unit as a whole number";
+    const costProblem = moneyProblem(cost);
+    if (costProblem) errs.cost = costProblem;
     if (expiry && expiry < received) errs.expiry = "Expiry can't be before the received date";
     setErrors(errs);
     if (Object.keys(errs).length) return;
@@ -81,7 +83,7 @@ export default function ReceiveStockPage() {
           </label>
           <label className="label">
             Cost per unit (K)
-            <input className="input" inputMode="numeric" value={cost} onChange={(e) => { setCost(e.target.value); clear("cost")(); }} aria-invalid={!!errors.cost} />
+            <input className="input" inputMode="decimal" placeholder="8.75" value={cost} onChange={(e) => { setCost(e.target.value); clear("cost")(); }} aria-invalid={!!errors.cost} />
             {err("cost")}
             {costWarning && <p className="hint text-warning">⚠ Higher than the selling price</p>}
           </label>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, formatMoney, type Product } from "@/lib/api";
 import { useFeedback } from "@/components/Feedback";
+import { moneyProblem, parseMoney, toInputMoney } from "@/lib/money";
 
 const emptyForm = { name: "", category: "", unit: "piece", selling_price: "", reorder_level: "0" };
 type Errors = Partial<Record<keyof typeof emptyForm, string>>;
@@ -38,7 +39,7 @@ export default function ProductsPage() {
   function startEdit(p: Product | null) {
     setEditing(p);
     setErrors({});
-    setForm(p ? { name: p.name, category: p.category, unit: p.unit, selling_price: String(p.selling_price), reorder_level: String(p.reorder_level) } : emptyForm);
+    setForm(p ? { name: p.name, category: p.category, unit: p.unit, selling_price: toInputMoney(p.selling_price), reorder_level: String(p.reorder_level) } : emptyForm);
     if (p) window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -50,7 +51,8 @@ export default function ProductsPage() {
     const e: Errors = {};
     if (!form.name.trim()) e.name = "Enter the product name";
     if (!form.unit.trim()) e.unit = "Enter a unit, e.g. piece or kg";
-    if (!isWhole(form.selling_price)) e.selling_price = "Enter the price as a whole number, e.g. 1500";
+    const priceProblem = moneyProblem(form.selling_price);
+    if (priceProblem) e.selling_price = priceProblem;
     if (!isWhole(form.reorder_level)) e.reorder_level = "Enter a whole number (0 if you don't need an alert)";
     return e;
   }
@@ -64,7 +66,7 @@ export default function ProductsPage() {
     try {
       const saved = await api<Product>(editing ? `/api/products/${editing.id}` : "/api/products", {
         method: editing ? "PATCH" : "POST",
-        body: JSON.stringify({ ...form, selling_price: Number(form.selling_price), reorder_level: Number(form.reorder_level) }),
+        body: JSON.stringify({ ...form, selling_price: parseMoney(form.selling_price), reorder_level: Number(form.reorder_level) }),
       });
       toast("success", editing ? `Saved changes to ${saved.name}` : `Added ${saved.name}`);
       setJustSaved(saved.id);
@@ -120,9 +122,9 @@ export default function ProductsPage() {
         </label>
         <label className="label">
           Price (K)
-          <input className="input" inputMode="numeric" value={form.selling_price} onChange={set("selling_price")} aria-invalid={!!errors.selling_price} />
+          <input className="input" inputMode="decimal" placeholder="12.50" value={form.selling_price} onChange={set("selling_price")} aria-invalid={!!errors.selling_price} />
           {err("selling_price")}
-          {isWhole(form.selling_price) && <p className="hint">{formatMoney(Number(form.selling_price))}</p>}
+          {parseMoney(form.selling_price) !== null && <p className="hint">{formatMoney(parseMoney(form.selling_price)!)}</p>}
         </label>
         <label className="label">
           Alert when stock ≤

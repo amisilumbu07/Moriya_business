@@ -48,10 +48,7 @@ export type Batch = {
   expiry_date: string | null;
 };
 
-/** Zambian Kwacha (ZMW). Change these two lines to switch currency everywhere in the UI. */
-export const CURRENCY_CODE = "ZMW";
-export const CURRENCY_SYMBOL = "K";
-export const formatMoney = (n: number) => `${CURRENCY_SYMBOL}${n.toLocaleString("en-US")}`;
+export { CURRENCY_CODE, CURRENCY_SYMBOL, formatMoney } from "./money";
 
 export type SaleLine = {
   id: number;

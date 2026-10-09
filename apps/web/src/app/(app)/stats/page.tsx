@@ -10,6 +10,8 @@ type Preset = "week" | "lastweek" | "month" | "custom";
 const COLORS = ["var(--primary)", "var(--primary-2)", "var(--success)", "var(--warning)", "var(--danger)", "var(--muted)"];
 const tooltipStyle = { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 12, color: "var(--text)" };
 const compact = (n: number) => new Intl.NumberFormat("en", { notation: "compact" }).format(n);
+/** Axis labels for money values, which arrive in ngwee. */
+const compactMoney = (ngwee: number) => compact(ngwee / 100);
 
 export default function StatsPage() {
   const { toast } = useFeedback();
@@ -122,7 +124,7 @@ export default function StatsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={top} layout="vertical" margin={{ left: 8, right: 24 }}>
                     <CartesianGrid horizontal={false} stroke="var(--line)" />
-                    <XAxis type="number" tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={compact} />
+                    <XAxis type="number" tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={metric === "revenue" ? compactMoney : compact} />
                     <YAxis type="category" dataKey="name" width={110} tick={{ fill: "var(--text)", fontSize: 13 }} />
                     <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--surface-2)" }}
                       formatter={(v) => [metric === "revenue" ? formatMoney(Number(v)) : `${v} units`, metric === "revenue" ? "Revenue" : "Sold"]} />
@@ -141,7 +143,7 @@ export default function StatsPage() {
                   <LineChart data={stats.trend} margin={{ left: 0, right: 16, top: 8 }}>
                     <CartesianGrid vertical={false} stroke="var(--line)" />
                     <XAxis dataKey="date" tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={(d) => formatDate(d, { day: "numeric", month: "short" })} minTickGap={24} />
-                    <YAxis tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={compact} width={48} />
+                    <YAxis tick={{ fill: "var(--muted)", fontSize: 12 }} tickFormatter={compactMoney} width={48} />
                     <Tooltip contentStyle={tooltipStyle} labelFormatter={(d) => formatDate(String(d))} formatter={(v) => [formatMoney(Number(v)), "Sales"]} />
                     <Line type="monotone" dataKey="total" stroke="var(--primary)" strokeWidth={3} dot={stats.trend.length <= 14} activeDot={{ r: 6 }} animationDuration={900} />
                   </LineChart>

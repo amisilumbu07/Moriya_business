@@ -45,6 +45,9 @@ cd ../.. && vercel deploy --prod
 ```
 On Vercel the backend refuses to start without a real `AUTH_SECRET` and a Postgres `DATABASE_URL`, and the session cookie is always `Secure`. Preview URLs sit behind Vercel's login by default; the production URL is public.
 
+## Money
+All amounts are stored as whole **ngwee** (1 kwacha = 100 ngwee, so K12.50 is `1250`) to avoid rounding errors. The API uses ngwee; the app shows kwacha with two decimals and accepts values like `12` or `12.50` (a dot, not a comma).
+
 ## Weekly report schedule
 - **On Vercel:** `vercel.json` calls `/api/cron/weekly-report` every Monday 06:00 UTC. Set `CRON_SECRET` (long random value) in the project's environment variables; the endpoint refuses requests without it.
 - **Locally:** `cd apps/backend && uv run python weekly_report.py` (or schedule it with your OS). Opening the Reports page also creates the last finished week's report if it is missing.
@@ -55,5 +58,5 @@ Both roles can use stock, sales, statistics, warnings and reports. **Profit and 
 ## Tests and checks
 ```bash
 cd apps/backend && uv run pytest
-cd apps/web && npm run lint && npm run build
+cd apps/web && npm test && npm run lint && npm run build
 ```

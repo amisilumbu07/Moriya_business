@@ -31,7 +31,7 @@ class Setting(Base):
 
 
 class Product(Base):
-    """Money is stored as whole kwacha (ZMW; no ngwee yet); quantities are whole numbers."""
+    """Money is stored as whole NGWEE (1 kwacha = 100 ngwee, so K12.50 is 1250); quantities are whole numbers."""
 
     __tablename__ = "products"
 

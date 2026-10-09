@@ -349,14 +349,15 @@ Record every significant choice here (date · decision · reason).
 |------|----------|--------|
 | 2026-10-09 | Tithe/offering computed on total weekly sales, 10 % each | Matches the original brief; confirm with owner (section 1.4) |
 | 2026-10-09 | Stack: Next.js + FastAPI + SQLAlchemy/Alembic, SQLite→Neon Postgres, all on Vercel | Requested by the owner; Python backend owns data and Excel export |
-| 2026-10-09 | Quantities are whole numbers; money is whole Zambian kwacha (ZMW, shown as K); stock adjustments target a specific batch and are logged in `stock_adjustments` | Simplest correct model for Phase 2; revisit if the store sells fractional kg/litres |
+| 2026-10-09 | Quantities are whole numbers; money is whole ngwee (ZMW, shown as K); stock adjustments target a specific batch and are logged in `stock_adjustments` | Simplest correct model for Phase 2; revisit if the store sells fractional kg/litres |
 | 2026-10-09 | Tithe/offering each rounded half-up to a whole unit; remaining = total − tithe − offering (10% of 1 005 → 101 + 101, remaining 803) | Parts always add up to the total; confirm rounding with the owner |
 | 2026-10-09 | Each sale line records which batches it drew from (`sale_allocations`) | Edits/deletes restore stock to exactly the right batches |
 | 2026-10-09 | UI: five colour skins via CSS variables, toasts, confirm dialogs, live stock checks | Fewer cashier mistakes; skin saved per browser |
 | 2026-10-09 | Owner-only profit per product = sales − cost of the exact batches sold (from `sale_allocations`); cashier API responses contain null cost/profit | Profit must never reach the cashier's browser, not just be hidden in the UI |
 | 2026-10-09 | Weekly report: Vercel Cron (Mon 06:00 UTC, `CRON_SECRET`) + catch-up when the Reports page is opened + `weekly_report.py` for local scheduling | Report appears without anyone clicking, even if a cron run is missed |
 | 2026-10-09 | Smart restock hint uses 28-day average daily sales; products with < 7 days of stock are flagged even above the reorder level | Matches the plan's "compare weekly sales to stock on hand" |
-| 2026-10-09 | Currency switched from XAF to Zambian kwacha (ZMW, "K"); amounts are still whole kwacha, ngwee (cents) not supported yet | Requested by the owner; decimals would need money stored in ngwee |
+| 2026-10-09 | Currency switched from XAF to Zambian kwacha (ZMW, "K"); ngwee added in the next decision | Requested by the owner |
+| 2026-10-09 | **Money is stored in ngwee** (1 kwacha = 100 ngwee, K12.50 = 1250) in every money column; the API speaks ngwee, the UI shows/accepts kwacha with up to 2 decimals (`apps/web/src/lib/money.ts`). Migration `a1c0ffee0001` multiplies existing amounts (and saved reports) by 100 | Supports ngwee without floating-point errors; supersedes the earlier "whole kwacha only" note |
 | 2026-10-09 | Monthly Excel export + archiving to stay inside free storage | See section 11 |
 
 ---

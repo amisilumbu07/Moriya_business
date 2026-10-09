@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatedNumber } from "@/components/AnimatedNumber";
 import { useFeedback } from "@/components/Feedback";
 import { api, ApiError, formatDate, formatMoney, todayIso, type Day, type Product } from "@/lib/api";
+import { moneyProblem, parseMoney, toInputMoney } from "@/lib/money";
 
 type Row = { key: number; productId: string; qty: string; price: string };
 type Mode = "DETAILED" | "TOTAL_ONLY";
@@ -53,7 +54,7 @@ export default function SalesEntry({ date }: { date: string }) {
         setLoaded({ date, products, day });
         setMode(day?.mode ?? "DETAILED");
         setRows(day && day.mode === "DETAILED"
-          ? day.items.map((i) => ({ key: rowKey++, productId: String(i.product_id), qty: String(i.quantity), price: String(i.unit_price) }))
+          ? day.items.map((i) => ({ key: rowKey++, productId: String(i.product_id), qty: String(i.quantity), price: toInputMoney(i.unit_price) }))
           : [blankRow()]);
         setTotalText(day?.mode === "TOTAL_ONLY" ? String(day.total_amount) : "");
         setNote(day?.note ?? "");
@@ -91,24 +92,26 @@ export default function SalesEntry({ date }: { date: string }) {
     const pid = Number(r.productId);
     const product = products.find((p) => p.id === pid);
     const qty = Number(r.qty);
-    const priceOk = isWhole(r.price);
+    const priceNgwee = parseMoney(r.price);
+    const priceOk = priceNgwee !== null;
     const qtyOk = isWhole(r.qty) && qty > 0;
     const usedByRowsBefore = rows.slice(0, idx + 1).filter((x) => x.productId === r.productId).reduce((s, x) => s + (isWhole(x.qty) ? Number(x.qty) : 0), 0);
     const avail = product ? available.get(product.id) ?? 0 : 0;
     let error: string | null = null;
     if (!product) error = "Choose a product";
     else if (!qtyOk) error = "Quantity must be a whole number above 0";
-    else if (!priceOk) error = "Enter the price";
+    else if (!priceOk) error = moneyProblem(r.price) ?? "Enter the price";
     else if (usedByRowsBefore > avail) error = avail === 0 ? `${product.name} is out of stock` : `Only ${avail} ${product.unit} available`;
     const duplicate = !!product && rows.slice(0, idx).some((x) => x.productId === r.productId);
-    const line = qtyOk && priceOk ? qty * Number(r.price) : 0;
-    const priceDiffers = !!product && priceOk && Number(r.price) !== product.selling_price;
+    const line = qtyOk && priceOk ? qty * priceNgwee : 0;
+    const priceDiffers = !!product && priceOk && priceNgwee !== product.selling_price;
     return { product, error, duplicate, line, priceDiffers, avail };
   });
 
   const detailedTotal = rowInfo.reduce((s, r) => s + r.line, 0);
-  const totalOnlyOk = isWhole(totalText);
-  const total = mode === "DETAILED" ? detailedTotal : totalOnlyOk ? Number(totalText) : 0;
+  const totalOnlyNgwee = parseMoney(totalText);
+  const totalOnlyOk = totalOnlyNgwee !== null;
+  const total = mode === "DETAILED" ? detailedTotal : totalOnlyNgwee ?? 0;
   const problems = mode === "DETAILED" ? rowInfo.filter((r) => r.error).length : totalOnlyOk ? 0 : 1;
   const canSave = !saving && problems === 0 && (mode === "DETAILED" ? rows.length > 0 : true);
 
@@ -118,7 +121,7 @@ export default function SalesEntry({ date }: { date: string }) {
   function removeRow(key: number) { setRows((rs) => (rs.length === 1 ? [blankRow()] : rs.filter((r) => r.key !== key))); setDirty(true); }
   function pickProduct(key: number, productId: string) {
     const p = products.find((x) => String(x.id) === productId);
-    updateRow(key, { productId, price: p ? String(p.selling_price) : "" });
+    updateRow(key, { productId, price: p ? toInputMoney(p.selling_price) : "" });
   }
 
   async function goToDate(next: string) {
@@ -160,8 +163,8 @@ export default function SalesEntry({ date }: { date: string }) {
     setSaving(true);
     try {
       const body = mode === "DETAILED"
-        ? { mode, note, items: rows.map((r) => ({ product_id: Number(r.productId), quantity: Number(r.qty), unit_price: Number(r.price) })) }
-        : { mode, note, total_amount: Number(totalText) };
+        ? { mode, note, items: rows.map((r) => ({ product_id: Number(r.productId), quantity: Number(r.qty), unit_price: parseMoney(r.price) })) }
+        : { mode, note, total_amount: totalOnlyNgwee };
       const saved = await api<Day>(`/api/sales/${date}`, { method: "PUT", body: JSON.stringify(body) });
       toast("success", `Saved ${formatDate(date)} — ${formatMoney(saved.total_amount)}`);
       setDirty(false);
@@ -243,8 +246,8 @@ export default function SalesEntry({ date }: { date: string }) {
                   <input className="input" inputMode="numeric" value={r.qty} onChange={(e) => updateRow(r.key, { qty: e.target.value })} aria-invalid={!!(info.error && info.product && !isWhole(r.qty) || (info.error?.includes("available") || info.error?.includes("out of stock")))} />
                 </label>
                 <label className="label">Price (K)
-                  <input className="input" inputMode="numeric" value={r.price} onChange={(e) => updateRow(r.key, { price: e.target.value })}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (idx === rows.length - 1) addRow(); } }} aria-invalid={!!(tried && !isWhole(r.price))} />
+                  <input className="input" inputMode="decimal" value={r.price} onChange={(e) => updateRow(r.key, { price: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (idx === rows.length - 1) addRow(); } }} aria-invalid={!!(tried && parseMoney(r.price) === null)} />
                   {info.priceDiffers && info.product && <p className="hint text-warning">List price {formatMoney(info.product.selling_price)}</p>}
                 </label>
                 <div className="label">Line total
@@ -260,10 +263,10 @@ export default function SalesEntry({ date }: { date: string }) {
       ) : (
         <div className="card pop-in max-w-md space-y-2">
           <label className="label">Total sales for the day (K)
-            <input className="input text-xl font-bold" inputMode="numeric" value={totalText} onChange={(e) => touch(setTotalText)(e.target.value)} autoFocus
-              aria-invalid={tried && !totalOnlyOk} placeholder="e.g. 45000" />
+            <input className="input text-xl font-bold" inputMode="decimal" value={totalText} onChange={(e) => touch(setTotalText)(e.target.value)} autoFocus
+              aria-invalid={tried && !totalOnlyOk} placeholder="e.g. 450 or 450.50" />
           </label>
-          {totalText && !totalOnlyOk && <p className="field-error">Use digits only, no spaces or commas.</p>}
+          {totalText && !totalOnlyOk && <p className="field-error">{moneyProblem(totalText)}</p>}
           {tried && !totalText && <p className="field-error">Enter the day&apos;s total.</p>}
           <p className="hint">Stock is not changed in this mode.</p>
         </div>

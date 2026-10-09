@@ -1,8 +1,8 @@
-"""Tithe/offering maths. Money is whole currency units, so everything here is integer arithmetic."""
+"""Tithe/offering maths. Money is whole ngwee (1/100 kwacha), so everything here is integer arithmetic."""
 
 
 def percent_of(total: int, percent: int) -> int:
-    """`percent`% of `total`, rounded half up (10% of 1005 = 101)."""
+    """`percent`% of `total`, rounded half up to the nearest ngwee (10% of 1005 ngwee = K10.05 -> 101 ngwee)."""
     return (total * percent + 50) // 100
 
 

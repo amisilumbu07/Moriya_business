@@ -1,0 +1,12 @@
+from fastapi import FastAPI
+
+from app.config import settings
+from app.routers import auth, health, inventory
+
+if settings.is_production and settings.auth_secret.startswith("dev-only"):
+    raise RuntimeError("Set AUTH_SECRET to a long random value in production")
+
+app = FastAPI(title="Store Inventory API", docs_url="/api/docs", openapi_url="/api/openapi.json")
+app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(inventory.router)

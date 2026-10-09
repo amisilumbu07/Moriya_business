@@ -1,0 +1,40 @@
+# AI assistant files (keep Claude out of the repo / contributors list)
+CLAUDE.md
+**/CLAUDE.md
+.claude/
+graphify-out/
+
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+build/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local database
+*.db
+*.db-journal
+prisma/dev.db*
+
+# Logs & OS/editor files
+*.log
+npm-debug.log*
+.DS_Store
+.vscode/
+.idea/
+
+# Vercel
+.vercel/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

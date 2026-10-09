@@ -43,3 +43,19 @@ def test_login_me_logout_flow(client):
     assert client.get("/api/auth/me").json()["name"] == "Cashier"
     client.post("/api/auth/logout")
     assert client.get("/api/auth/me").status_code == 401
+
+
+def test_production_refuses_to_start_with_unsafe_defaults(monkeypatch):
+    import importlib
+    import app.main as main_module
+    from app.config import settings
+
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setattr(settings, "auth_secret", "dev-only-secret")
+    with pytest.raises(RuntimeError, match="AUTH_SECRET"):
+        importlib.reload(main_module)
+    monkeypatch.setattr(settings, "auth_secret", "x" * 40)
+    with pytest.raises(RuntimeError, match="DATABASE_URL"):
+        importlib.reload(main_module)
+    monkeypatch.delenv("VERCEL")
+    importlib.reload(main_module)  # back to a normal app for later tests

@@ -29,6 +29,22 @@ npm run dev                     # http://localhost:3000 (/api/* is forwarded to 
 
 Set `SEED_OWNER_PASSWORD` / `SEED_CASHIER_PASSWORD` before seeding to choose your own. They are **required** when `APP_ENV=production`.
 
+## Deploy to Vercel
+One Vercel project, two services (`vercel.json`): the Next.js frontend and the FastAPI backend, with `/api/*` routed to FastAPI.
+```bash
+vercel link                                   # once, from the repo root
+vercel integration add neon                   # Postgres; injects DATABASE_URL
+vercel env add AUTH_SECRET production         # long random string
+vercel env add CRON_SECRET production         # long random string (weekly report cron)
+vercel env pull apps/backend/.env.production.local --environment=production
+# create the tables and the first accounts in the production database (choose strong passwords):
+cd apps/backend
+set -a; . ./.env.production.local; set +a
+SEED_OWNER_PASSWORD='...' SEED_CASHIER_PASSWORD='...' sh -c 'uv run alembic upgrade head && uv run python seed.py'
+cd ../.. && vercel deploy --prod
+```
+On Vercel the backend refuses to start without a real `AUTH_SECRET` and a Postgres `DATABASE_URL`, and the session cookie is always `Secure`. Preview URLs sit behind Vercel's login by default; the production URL is public.
+
 ## Weekly report schedule
 - **On Vercel:** `vercel.json` calls `/api/cron/weekly-report` every Monday 06:00 UTC. Set `CRON_SECRET` (long random value) in the project's environment variables; the endpoint refuses requests without it.
 - **Locally:** `cd apps/backend && uv run python weekly_report.py` (or schedule it with your OS). Opening the Reports page also creates the last finished week's report if it is missing.

@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +25,8 @@ class Settings(BaseSettings):
 
     @property
     def is_production(self) -> bool:
-        return self.app_env == "production"
+        # Vercel sets VERCEL=1 on every deployment (preview and production), all served over https.
+        return self.app_env == "production" or bool(os.environ.get("VERCEL"))
 
 
 settings = Settings()
